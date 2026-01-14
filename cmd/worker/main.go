@@ -42,6 +42,7 @@ func main() {
 	// Initialize Repositories
 	buildRepo := postgres.NewBuildRepository(pool)
 	projectRepo := postgres.NewProjectRepository(pool)
+	secretRepo := postgres.NewSecretRepository(pool)
 
 	// Initialize Runner
 	dockerRunner, err := runner.NewDockerRunner()
@@ -50,7 +51,7 @@ func main() {
 	}
 
 	// Initialize Executor
-	executor := worker.NewExecutor(buildRepo, projectRepo, dockerRunner)
+	executor := worker.NewExecutor(buildRepo, projectRepo, secretRepo, dockerRunner, cfg.EncryptionKey)
 
 	// Initialize Redis for polling
 	opt, _ := redis.ParseURL(cfg.RedisURL)

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/princetheprogrammerbtw/nanoci/internal/domain"
 	"github.com/princetheprogrammerbtw/nanoci/internal/runner"
+	"github.com/princetheprogrammerbtw/nanoci/pkg/crypto"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -18,18 +19,23 @@ import (
 type Executor struct {
 	buildRepo   domain.BuildRepository
 	projectRepo domain.ProjectRepository
+	secretRepo  domain.SecretRepository
 	runner      *runner.DockerRunner
+	encryptionKey []byte
 }
 
-func NewExecutor(br domain.BuildRepository, pr domain.ProjectRepository, r *runner.DockerRunner) *Executor {
+func NewExecutor(br domain.BuildRepository, pr domain.ProjectRepository, sr domain.SecretRepository, r *runner.DockerRunner, key string) *Executor {
 	return &Executor{
 		buildRepo:   br,
 		projectRepo: pr,
+		secretRepo:  sr,
 		runner:      r,
+		encryptionKey: []byte(key),
 	}
 }
 
 func (e *Executor) Execute(ctx context.Context, buildID string) error {
+	// ... (id parsing and build/project fetching)
 	id, err := uuid.Parse(buildID)
 	if err != nil {
 		return err
@@ -47,6 +53,25 @@ func (e *Executor) Execute(ctx context.Context, buildID string) error {
 	if err != nil {
 		return err
 	}
+
+	// Fetch Secrets
+	secrets, err := e.secretRepo.ListByProjectID(ctx, project.ID)
+	if err != nil {
+		zap.L().Error("failed to fetch secrets", zap.Error(err))
+	}
+
+	env := make(map[string]string)
+	for _, s := range secrets {
+		val, err := crypto.Decrypt(s.EncryptedValue, e.encryptionKey)
+		if err != nil {
+			zap.L().Error("failed to decrypt secret", zap.String("key", s.Key), zap.Error(err))
+			continue
+		}
+		env[s.Key] = val
+	}
+
+	// Update build status to RUNNING
+	// ...
 
 	// Update build status to RUNNING
 	now := time.Now()
@@ -85,6 +110,18 @@ func (e *Executor) Execute(ctx context.Context, buildID string) error {
 	// 4. Run Steps
 	for _, step := range pipeline.Steps {
 		zap.L().Info("running step", zap.String("name", step.Name))
+		
+		// Merge project secrets into step env
+		mergedEnv := make(map[string]string)
+		for k, v := range env {
+			mergedEnv[k] = v
+		}
+		for k, v := range step.Env {
+			mergedEnv[k] = v
+		}
+		
+		step.Env = mergedEnv
+
 		exitCode, err := e.runner.RunStep(ctx, pipeline.Image, step, workspace, os.Stdout)
 		if err != nil {
 			return e.markFailed(ctx, build, err)
