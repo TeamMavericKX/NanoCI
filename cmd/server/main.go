@@ -10,7 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/princetheprogrammerbtw/nanoci/internal/auth"
 	"github.com/princetheprogrammerbtw/nanoci/internal/config"
+	"github.com/princetheprogrammerbtw/nanoci/internal/db"
+	"github.com/princetheprogrammerbtw/nanoci/internal/repository/postgres"
+	"github.com/princetheprogrammerbtw/nanoci/internal/server/handlers"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +31,28 @@ func main() {
 		zap.L().Fatal("failed to load config", zap.Error(err))
 	}
 
+	// Initialize DB
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pool, err := db.NewPool(ctx, cfg.DBURL)
+	if err != nil {
+		zap.L().Fatal("failed to connect to database", zap.Error(err))
+	}
+	defer pool.Close()
+
+	// Initialize Repositories
+	userRepo := postgres.NewUserRepository(pool)
+	// projectRepo := postgres.NewProjectRepository(pool)
+	// buildRepo := postgres.NewBuildRepository(pool)
+	// secretRepo := postgres.NewSecretRepository(pool)
+
+	// Initialize Services
+	authService := auth.NewAuthService(cfg, userRepo)
+
+	// Initialize Handlers
+	authHandler := handlers.NewAuthHandler(authService)
+
 	// Setup Router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -37,6 +63,11 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	r.Route("/auth", func(r chi.Router) {
+		r.Get("/login", authHandler.Login)
+		r.Get("/callback", authHandler.Callback)
 	})
 
 	// Server setup
