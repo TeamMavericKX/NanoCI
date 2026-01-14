@@ -21,6 +21,13 @@ func NewProjectHandler(repo domain.ProjectRepository) *ProjectHandler {
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	// For now, assume a hardcoded user ID or get from context if middleware is ready
 	userIDStr := r.Header.Get("X-User-ID")
+	if userIDStr == "" {
+		cookie, err := r.Cookie("user_id")
+		if err == nil {
+			userIDStr = cookie.Value
+		}
+	}
+
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "invalid user id")
@@ -65,6 +72,12 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userIDStr := r.Header.Get("X-User-ID")
+	if userIDStr == "" {
+		cookie, err := r.Cookie("user_id")
+		if err == nil {
+			userIDStr = cookie.Value
+		}
+	}
 	userID, _ := uuid.Parse(userIDStr)
 	p.UserID = userID
 

@@ -39,6 +39,13 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// In a real app, create a JWT or session here
+	// For this prototype, we'll set a simple insecure cookie with the user ID
+	http.SetCookie(w, &http.Cookie{
+		Name:  "user_id",
+		Value: user.ID.String(),
+		Path:  "/",
+	})
+	
 	zap.L().Info("user logged in", zap.String("username", user.Username))
-	w.Write([]byte("Welcome " + user.Username))
+	http.Redirect(w, r, "http://localhost:5173/", http.StatusFound)
 }
