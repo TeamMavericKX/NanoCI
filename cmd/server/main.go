@@ -46,7 +46,7 @@ func main() {
 	userRepo := postgres.NewUserRepository(pool)
 	projectRepo := postgres.NewProjectRepository(pool)
 	buildRepo := postgres.NewBuildRepository(pool)
-	// secretRepo := postgres.NewSecretRepository(pool)
+	secretRepo := postgres.NewSecretRepository(pool)
 
 	// Initialize Queue
 	q, err := queue.NewRedisQueue(cfg.RedisURL)
@@ -61,6 +61,9 @@ func main() {
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	webhookHandler := handlers.NewWebhookHandler(projectRepo, buildRepo, q)
+	projectHandler := handlers.NewProjectHandler(projectRepo)
+	buildHandler := handlers.NewBuildHandler(buildRepo)
+	secretHandler := handlers.NewSecretHandler(secretRepo, cfg.EncryptionKey)
 
 	// Setup Router
 	r := chi.NewRouter()
@@ -72,6 +75,20 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/projects", func(r chi.Router) {
+			r.Get("/", projectHandler.List)
+			r.Post("/", projectHandler.Create)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", projectHandler.Get)
+				r.Get("/builds", buildHandler.ListByProject)
+				r.Get("/secrets", secretHandler.List)
+				r.Post("/secrets", secretHandler.Create)
+			})
+		})
+		r.Get("/builds/{id}", buildHandler.Get)
 	})
 
 	r.Route("/auth", func(r chi.Router) {
