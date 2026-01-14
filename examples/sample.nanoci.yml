@@ -1,0 +1,10 @@
+image: golang:1.22-alpine
+steps:
+  - name: test
+    commands:
+      - go test -v ./...
+    env:
+      GOFLAGS: "-mod=vendor"
+  - name: build
+    commands:
+      - go build -o app main.go
