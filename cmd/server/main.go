@@ -16,11 +16,12 @@ import (
 	"github.com/princetheprogrammerbtw/nanoci/internal/queue"
 	"github.com/princetheprogrammerbtw/nanoci/internal/repository/postgres"
 	"github.com/princetheprogrammerbtw/nanoci/internal/server/handlers"
+	"github.com/princetheprogrammerbtw/nanoci/internal/server/logstream"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Initialize Logger
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	undo := zap.ReplaceGlobals(logger)
@@ -42,6 +43,11 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Initialize Redis
+	opt, _ := redis.ParseURL(cfg.RedisURL)
+	rdb := redis.NewClient(opt)
+	defer rdb.Close()
+
 	// Initialize Repositories
 	userRepo := postgres.NewUserRepository(pool)
 	projectRepo := postgres.NewProjectRepository(pool)
@@ -49,14 +55,11 @@ func main() {
 	secretRepo := postgres.NewSecretRepository(pool)
 
 	// Initialize Queue
-	q, err := queue.NewRedisQueue(cfg.RedisURL)
-	if err != nil {
-		zap.L().Fatal("failed to initialize redis queue", zap.Error(err))
-	}
-	defer q.Close()
+	q := queue.NewRedisQueue(rdb)
 
 	// Initialize Services
 	authService := auth.NewAuthService(cfg, userRepo)
+	logManager := logstream.NewLogManager(rdb)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -77,7 +80,13 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
+	r.Get("/ws/logs/{buildID}", func(w http.ResponseWriter, r *http.Request) {
+		buildID := chi.URLParam(r, "buildID")
+		logManager.HandleWS(w, r, buildID)
+	})
+
 	r.Route("/api/v1", func(r chi.Router) {
+// ...
 		r.Route("/projects", func(r chi.Router) {
 			r.Get("/", projectHandler.List)
 			r.Post("/", projectHandler.Create)

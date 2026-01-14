@@ -16,14 +16,8 @@ type RedisQueue struct {
 	client *redis.Client
 }
 
-func NewRedisQueue(redisURL string) (*RedisQueue, error) {
-	opt, err := redis.ParseURL(redisURL)
-	if err != nil {
-		return nil, err
-	}
-
-	client := redis.NewClient(opt)
-	return &RedisQueue{client: client}, nil
+func NewRedisQueue(client *redis.Client) *RedisQueue {
+	return &RedisQueue{client: client}
 }
 
 func (q *RedisQueue) Enqueue(ctx context.Context, job *Job) error {
