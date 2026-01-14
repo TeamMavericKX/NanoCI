@@ -19,7 +19,6 @@ import (
 )
 
 func main() {
-	// ... (logger and config)
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	zap.ReplaceGlobals(logger)
@@ -50,13 +49,13 @@ func main() {
 		zap.L().Fatal("failed to initialize docker runner", zap.Error(err))
 	}
 
-	// Initialize Executor
-	executor := worker.NewExecutor(buildRepo, projectRepo, secretRepo, dockerRunner, rdb, cfg.EncryptionKey)
-
-	// Initialize Redis for polling
+	// Initialize Redis
 	opt, _ := redis.ParseURL(cfg.RedisURL)
 	rdb := redis.NewClient(opt)
 	defer rdb.Close()
+
+	// Initialize Executor
+	executor := worker.NewExecutor(buildRepo, projectRepo, secretRepo, dockerRunner, rdb, cfg.EncryptionKey)
 
 	zap.L().Info("worker started, waiting for jobs...")
 

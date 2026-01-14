@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/princetheprogrammerbtw/nanoci/internal/config"
 	"github.com/princetheprogrammerbtw/nanoci/internal/domain"

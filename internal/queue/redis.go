@@ -3,7 +3,6 @@ package queue
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
