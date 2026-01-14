@@ -1,40 +1,38 @@
-# NanoCI 🥘
+# 🥘 NanoCI: Your Own Private GitHub Actions
 
-NanoCI is a single-binary CI/CD server written in Go. It's lightweight, container-native, and self-hosted.
+**NanoCI** is a high-performance, single-binary (or containerized) CI/CD server designed for developers who want the power of GitHub Actions without the cost or the bloat of Jenkins.
 
-## Features
-- **Docker Isolation**: Each build step runs in its own container.
-- **Real-time Logs**: Watch your builds flow via WebSockets.
-- **Secrets Management**: AES-GCM encrypted secrets at rest.
-- **GitHub Integration**: Trigger builds on push webhooks.
-- **Redis Queue**: Scalable job distribution.
+Built from the ground up with **Go**, **Docker**, and **WebSockets**, NanoCI provides a modern, container-native experience for automating your builds on a $5 VPS or a Raspberry Pi.
 
-## Tech Stack
-- **Backend**: Go 1.22 (Chi, Pgx, Zap)
-- **Database**: PostgreSQL
-- **Queue**: Redis
-- **Isolation**: Docker SDK
+### 🧠 Why NanoCI?
+*   **Zero Bloat:** Written in Go for raw speed and minimal memory footprint.
+*   **Docker-Native:** Every build step runs in a fresh, isolated container.
+*   **Real-Time Everything:** Watch your logs stream in real-time via WebSockets and Redis Pub/Sub.
+*   **Security First:** AES-GCM 256-bit encryption for project secrets and GitHub OAuth2 authentication.
+*   **Simple YAML:** Define pipelines in `.nanoci.yml` just like you’re used to.
 
-## Getting Started
+### 🛠️ The "Modern" Stack
+-   **Backend:** Go 1.22+ (Chi, pgx, Zap)
+-   **Queue:** Redis (High-speed job distribution)
+-   **Muscle:** Docker SDK (Ephemeral container orchestration)
+-   **Frontend:** React + TypeScript + TailwindCSS (Vercel-style UI)
+-   **Database:** PostgreSQL (Robust persistence)
 
-### 1. Prerequisites
-- Docker & Docker Compose
-- GitHub OAuth App (for authentication)
-
-### 2. Configuration
-Create a `.env` file:
-```env
-GITHUB_CLIENT_ID=your_id
-GITHUB_CLIENT_SECRET=your_secret
-ENCRYPTION_KEY=32_byte_key_here_...
-```
-
-### 3. Run
+### 🚀 Quick Start
 ```bash
+# 1. Clone the power
+git clone https://github.com/10xdev4u-alt/NanoCI.git && cd NanoCI
+
+# 2. Set your secrets in .env
+# GITHUB_CLIENT_ID=...
+# GITHUB_CLIENT_SECRET=...
+# ENCRYPTION_KEY=...
+
+# 3. Launch the beast
 docker-compose up --build
 ```
 
-### 4. Usage
+### 📋 Usage
 Add a `.nanoci.yml` to your repository:
 ```yaml
 image: alpine:latest
@@ -44,5 +42,8 @@ steps:
       - echo "Hello from NanoCI!"
 ```
 
-## Architecture
+## 🏗️ Architecture
 See `docs/design/HLD.md` for details.
+
+---
+**Let's Cook.** 🥘 Built with ❤️ by PrinceTheProgrammer.
