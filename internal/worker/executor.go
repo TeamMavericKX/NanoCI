@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,24 +13,27 @@ import (
 	"github.com/princetheprogrammerbtw/nanoci/internal/domain"
 	"github.com/princetheprogrammerbtw/nanoci/internal/runner"
 	"github.com/princetheprogrammerbtw/nanoci/pkg/crypto"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
 type Executor struct {
-	buildRepo   domain.BuildRepository
-	projectRepo domain.ProjectRepository
-	secretRepo  domain.SecretRepository
-	runner      *runner.DockerRunner
+	buildRepo     domain.BuildRepository
+	projectRepo   domain.ProjectRepository
+	secretRepo    domain.SecretRepository
+	runner        *runner.DockerRunner
+	rdb           *redis.Client
 	encryptionKey []byte
 }
 
-func NewExecutor(br domain.BuildRepository, pr domain.ProjectRepository, sr domain.SecretRepository, r *runner.DockerRunner, key string) *Executor {
+func NewExecutor(br domain.BuildRepository, pr domain.ProjectRepository, sr domain.SecretRepository, r *runner.DockerRunner, rdb *redis.Client, key string) *Executor {
 	return &Executor{
-		buildRepo:   br,
-		projectRepo: pr,
-		secretRepo:  sr,
-		runner:      r,
+		buildRepo:     br,
+		projectRepo:   pr,
+		secretRepo:    sr,
+		runner:        r,
+		rdb:           rdb,
 		encryptionKey: []byte(key),
 	}
 }
@@ -53,6 +57,13 @@ func (e *Executor) Execute(ctx context.Context, buildID string) error {
 	if err != nil {
 		return err
 	}
+
+	// Setup Log Writer
+	redisWriter := NewRedisLogWriter(ctx, e.rdb, buildID)
+	logWriter := io.MultiWriter(os.Stdout, redisWriter)
+
+	// Fetch Secrets
+	// ...
 
 	// Fetch Secrets
 	secrets, err := e.secretRepo.ListByProjectID(ctx, project.ID)
@@ -122,7 +133,7 @@ func (e *Executor) Execute(ctx context.Context, buildID string) error {
 		
 		step.Env = mergedEnv
 
-		exitCode, err := e.runner.RunStep(ctx, pipeline.Image, step, workspace, os.Stdout)
+		exitCode, err := e.runner.RunStep(ctx, pipeline.Image, step, workspace, logWriter)
 		if err != nil {
 			return e.markFailed(ctx, build, err)
 		}

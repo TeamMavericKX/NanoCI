@@ -51,7 +51,7 @@ func main() {
 	}
 
 	// Initialize Executor
-	executor := worker.NewExecutor(buildRepo, projectRepo, secretRepo, dockerRunner, cfg.EncryptionKey)
+	executor := worker.NewExecutor(buildRepo, projectRepo, secretRepo, dockerRunner, rdb, cfg.EncryptionKey)
 
 	// Initialize Redis for polling
 	opt, _ := redis.ParseURL(cfg.RedisURL)
