@@ -13,6 +13,7 @@ import (
 	"github.com/princetheprogrammerbtw/nanoci/internal/auth"
 	"github.com/princetheprogrammerbtw/nanoci/internal/config"
 	"github.com/princetheprogrammerbtw/nanoci/internal/db"
+	"github.com/princetheprogrammerbtw/nanoci/internal/queue"
 	"github.com/princetheprogrammerbtw/nanoci/internal/repository/postgres"
 	"github.com/princetheprogrammerbtw/nanoci/internal/server/handlers"
 	"go.uber.org/zap"
@@ -43,15 +44,23 @@ func main() {
 
 	// Initialize Repositories
 	userRepo := postgres.NewUserRepository(pool)
-	// projectRepo := postgres.NewProjectRepository(pool)
-	// buildRepo := postgres.NewBuildRepository(pool)
+	projectRepo := postgres.NewProjectRepository(pool)
+	buildRepo := postgres.NewBuildRepository(pool)
 	// secretRepo := postgres.NewSecretRepository(pool)
+
+	// Initialize Queue
+	q, err := queue.NewRedisQueue(cfg.RedisURL)
+	if err != nil {
+		zap.L().Fatal("failed to initialize redis queue", zap.Error(err))
+	}
+	defer q.Close()
 
 	// Initialize Services
 	authService := auth.NewAuthService(cfg, userRepo)
 
 	// Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
+	webhookHandler := handlers.NewWebhookHandler(projectRepo, buildRepo, q)
 
 	// Setup Router
 	r := chi.NewRouter()
@@ -69,6 +78,8 @@ func main() {
 		r.Get("/login", authHandler.Login)
 		r.Get("/callback", authHandler.Callback)
 	})
+
+	r.Post("/webhooks/github", webhookHandler.HandleGithub)
 
 	// Server setup
 	srv := &http.Server{
