@@ -12,11 +12,14 @@ import (
 	"github.com/princetheprogrammerbtw/nanoci/internal/db"
 	"github.com/princetheprogrammerbtw/nanoci/internal/queue"
 	"github.com/princetheprogrammerbtw/nanoci/internal/repository/postgres"
+	"github.com/princetheprogrammerbtw/nanoci/internal/runner"
+	"github.com/princetheprogrammerbtw/nanoci/internal/worker"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 func main() {
+	// ... (logger and config)
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	zap.ReplaceGlobals(logger)
@@ -40,6 +43,15 @@ func main() {
 	buildRepo := postgres.NewBuildRepository(pool)
 	projectRepo := postgres.NewProjectRepository(pool)
 
+	// Initialize Runner
+	dockerRunner, err := runner.NewDockerRunner()
+	if err != nil {
+		zap.L().Fatal("failed to initialize docker runner", zap.Error(err))
+	}
+
+	// Initialize Executor
+	executor := worker.NewExecutor(buildRepo, projectRepo, dockerRunner)
+
 	// Initialize Redis for polling
 	opt, _ := redis.ParseURL(cfg.RedisURL)
 	rdb := redis.NewClient(opt)
@@ -53,7 +65,6 @@ func main() {
 			zap.L().Info("worker shutting down")
 			return
 		default:
-			// BRPop is a blocking pop from the right of the list
 			result, err := rdb.BRPop(ctx, 5*time.Second, "nanoci:jobs").Result()
 			if err == redis.Nil {
 				continue
@@ -71,11 +82,9 @@ func main() {
 
 			zap.L().Info("processing job", zap.String("build_id", job.BuildID))
 			
-			// TODO: Implement build execution logic
-			// 1. Fetch build and project from DB
-			// 2. Clone repo
-			// 3. Parse .nanoci.yml
-			// 4. Run docker containers
+			if err := executor.Execute(ctx, job.BuildID); err != nil {
+				zap.L().Error("execution failed", zap.String("build_id", job.BuildID), zap.Error(err))
+			}
 		}
 	}
 }
