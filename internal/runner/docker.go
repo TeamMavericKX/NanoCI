@@ -24,21 +24,33 @@ func NewDockerRunner() (*DockerRunner, error) {
 	return &DockerRunner{cli: cli}, nil
 }
 
-func (r *DockerRunner) RunStep(ctx context.Context, pipelineImage string, step domain.Step, workspace string) (int, error) {
-	// 1. Pull Image
+func (r *DockerRunner) RunStep(ctx context.Context, pipelineImage string, step domain.Step, workspace string, logWriter io.Writer) (int, error) {
+	// 1. Pull Image (silently if already exists, but for now we pull)
+	// In a real CI, we'd check if image exists or use a local cache
 	reader, err := r.cli.ImagePull(ctx, pipelineImage, image.PullOptions{})
 	if err != nil {
 		return 0, err
 	}
-	io.Copy(os.Stdout, reader) // For now, log pull progress to worker stdout
+	io.Copy(io.Discard, reader) // Pull silently for now
 	reader.Close()
 
-	// 2. Create Container
+	// 2. Prepare commands
+	// Join all commands with && so they run in sequence and stop on failure
+	fullCmd := ""
+	for i, c := range step.Commands {
+		if i > 0 {
+			fullCmd += " && "
+		}
+		fullCmd += c
+	}
+
+	// 3. Create Container
 	resp, err := r.cli.ContainerCreate(ctx, &container.Config{
-		Image: pipelineImage,
-		Cmd:   []string{"sh", "-c", step.Commands[0]}, // Simplified: just running the first command for now
-		Env:   flattenEnv(step.Env),
+		Image:      pipelineImage,
+		Cmd:        []string{"sh", "-c", fullCmd},
+		Env:        flattenEnv(step.Env),
 		WorkingDir: "/workspace",
+		Tty:        true,
 	}, &container.HostConfig{
 		Binds: []string{fmt.Sprintf("%s:/workspace", workspace)},
 	}, nil, nil, "")
@@ -46,12 +58,25 @@ func (r *DockerRunner) RunStep(ctx context.Context, pipelineImage string, step d
 		return 0, err
 	}
 
-	// 3. Start Container
+	// 4. Start Container
 	if err := r.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return 0, err
 	}
 
-	// 4. Wait for completion
+	// 5. Stream Logs
+	out, err := r.cli.ContainerLogs(ctx, resp.ID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
+	if err == nil {
+		go func() {
+			io.Copy(logWriter, out)
+			out.Close()
+		}()
+	}
+
+	// 6. Wait for completion
 	statusCh, errCh := r.cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -59,6 +84,8 @@ func (r *DockerRunner) RunStep(ctx context.Context, pipelineImage string, step d
 			return 0, err
 		}
 	case status := <-statusCh:
+		// Cleanup container
+		_ = r.cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
 		return int(status.StatusCode), nil
 	}
 

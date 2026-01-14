@@ -85,7 +85,7 @@ func (e *Executor) Execute(ctx context.Context, buildID string) error {
 	// 4. Run Steps
 	for _, step := range pipeline.Steps {
 		zap.L().Info("running step", zap.String("name", step.Name))
-		exitCode, err := e.runner.RunStep(ctx, pipeline.Image, step, workspace)
+		exitCode, err := e.runner.RunStep(ctx, pipeline.Image, step, workspace, os.Stdout)
 		if err != nil {
 			return e.markFailed(ctx, build, err)
 		}
